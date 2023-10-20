@@ -111,11 +111,24 @@ impl<'a> LineParser<'a> {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Default)]
 enum SubstitutionMode {
+    #[default]
     None,
     Block,
     EscapedBlock,
+}
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Default)]
+struct ValueState {
+    strong_quote: bool,
+    weak_quote: bool,
+    escaped: bool,
+    expecting_end: bool,
+    substitution_mode: SubstitutionMode,
+    substitution_name: String,
+    output: String,
 }
 
 // TODO(brxken128): clean this up 💀
@@ -124,23 +137,14 @@ fn parse_value(
     input: &str,
     substitution_data: &mut HashMap<String, Option<String>>,
 ) -> Result<String> {
-    let mut strong_quote = false; // '
-    let mut weak_quote = false; // "
-    let mut escaped = false;
-    let mut expecting_end = false;
-
-    //FIXME can this be done without yet another allocation per line?
-    let mut output = String::new();
-
-    let mut substitution_mode = SubstitutionMode::None;
-    let mut substitution_name = String::new();
+    let mut state = ValueState::default();
 
     for (index, c) in input.chars().enumerate() {
         //the regex _should_ already trim whitespace off the end
         //expecting_end is meant to permit: k=v #comment
         //without affecting: k=v#comment
         //and throwing on: k=v w
-        if expecting_end {
+        if state.expecting_end {
             if c == ' ' || c == '\t' {
                 continue;
             } else if c == '#' {
@@ -148,129 +152,124 @@ fn parse_value(
             }
 
             return Err(Error::LineParse(input.to_owned(), index));
-        } else if escaped {
+        } else if state.escaped {
             //TODO I tried handling literal \r but various issues
             //imo not worth worrying about until there's a use case
             //(actually handling backslash 0x10 would be a whole other matter)
             //then there's \v \f bell hex... etc
             match c {
-                '\\' | '\'' | '"' | '$' | ' ' => output.push(c),
-                'n' => output.push('\n'), // handle \n case
+                '\\' | '\'' | '"' | '$' | ' ' => state.output.push(c),
+                'n' => state.output.push('\n'), // handle \n case
                 _ => {
                     return Err(Error::LineParse(input.to_owned(), index));
                 }
             }
 
-            escaped = false;
-        } else if strong_quote {
+            state.escaped = false;
+        } else if state.strong_quote {
             if c == '\'' {
-                strong_quote = false;
+                state.strong_quote = false;
             } else {
-                output.push(c);
+                state.output.push(c);
             }
-        } else if substitution_mode != SubstitutionMode::None {
+        } else if state.substitution_mode != SubstitutionMode::None {
             if c.is_alphanumeric() {
-                substitution_name.push(c);
+                state.substitution_name.push(c);
             } else {
-                match substitution_mode {
+                match state.substitution_mode {
                     SubstitutionMode::None => unreachable!(),
                     SubstitutionMode::Block => {
-                        if c == '{' && substitution_name.is_empty() {
-                            substitution_mode = SubstitutionMode::EscapedBlock;
+                        if c == '{' && state.substitution_name.is_empty() {
+                            state.substitution_mode = SubstitutionMode::EscapedBlock;
                         } else {
                             apply_substitution(
                                 substitution_data,
-                                &mem::take(&mut substitution_name),
-                                &mut output,
+                                &mem::take(&mut state.substitution_name),
+                                &mut state.output,
                             );
                             if c == '$' {
-                                substitution_mode = if !strong_quote && !escaped {
+                                state.substitution_mode = if !state.strong_quote && !state.escaped {
                                     SubstitutionMode::Block
                                 } else {
                                     SubstitutionMode::None
                                 }
                             } else {
-                                substitution_mode = SubstitutionMode::None;
-                                output.push(c);
+                                state.substitution_mode = SubstitutionMode::None;
+                                state.output.push(c);
                             }
                         }
                     }
                     SubstitutionMode::EscapedBlock => {
                         if c == '}' {
-                            substitution_mode = SubstitutionMode::None;
+                            state.substitution_mode = SubstitutionMode::None;
                             apply_substitution(
                                 substitution_data,
-                                &mem::take(&mut substitution_name),
-                                &mut output,
+                                &mem::take(&mut state.substitution_name),
+                                &mut state.output,
                             );
                         } else {
-                            substitution_name.push(c);
+                            state.substitution_name.push(c);
                         }
                     }
                 }
             }
         } else if c == '$' {
-            substitution_mode = if !strong_quote && !escaped {
+            state.substitution_mode = if !state.strong_quote && !state.escaped {
                 SubstitutionMode::Block
             } else {
                 SubstitutionMode::None
             }
-        } else if weak_quote {
+        } else if state.weak_quote {
             if c == '"' {
-                weak_quote = false;
+                state.weak_quote = false;
             } else if c == '\\' {
-                escaped = true;
+                state.escaped = true;
             } else {
-                output.push(c);
+                state.output.push(c);
             }
         } else if c == '\'' {
-            strong_quote = true;
+            state.strong_quote = true;
         } else if c == '"' {
-            weak_quote = true;
+            state.weak_quote = true;
         } else if c == '\\' {
-            escaped = true;
+            state.escaped = true;
         } else if c == ' ' || c == '\t' {
-            expecting_end = true;
+            state.expecting_end = true;
         } else {
-            output.push(c);
+            state.output.push(c);
         }
     }
 
     //XXX also fail if escaped? or...
-    if substitution_mode == SubstitutionMode::EscapedBlock || strong_quote || weak_quote {
-        let value_length = input.len();
+    if state.substitution_mode == SubstitutionMode::EscapedBlock
+        || state.strong_quote
+        || state.weak_quote
+    {
         Err(Error::LineParse(
             input.to_owned(),
-            if value_length == 0 {
-                0
-            } else {
-                value_length - 1
-            },
+            if input.is_empty() { 0 } else { input.len() - 1 },
         ))
     } else {
         apply_substitution(
             substitution_data,
-            &mem::take(&mut substitution_name),
-            &mut output,
+            &mem::take(&mut state.substitution_name),
+            &mut state.output,
         );
-        Ok(output)
+        Ok(state.output)
     }
 }
 
 fn apply_substitution(
-    substitution_data: &mut HashMap<String, Option<String>>,
+    substitution_data: &HashMap<String, Option<String>>,
     substitution_name: &str,
     output: &mut String,
 ) {
     if let Ok(environment_value) = std::env::var(substitution_name) {
         output.push_str(&environment_value);
     } else {
-        let stored_value = substitution_data
+        substitution_data
             .get(substitution_name)
-            .unwrap_or(&None)
-            .clone();
-
-        output.push_str(&stored_value.unwrap_or_default());
+            .map(|x| x.clone().map(|x| output.push_str(&x)));
     };
 }
 

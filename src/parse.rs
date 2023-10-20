@@ -139,10 +139,7 @@ impl ValueState {
 
 // TODO(brxken128): clean this up 💀
 #[allow(clippy::too_many_lines)]
-fn parse_value(
-    input: &str,
-    substitution_data: &mut HashMap<String, Option<String>>,
-) -> Result<String> {
+fn parse_value(input: &str, substitution_data: &HashMap<String, Option<String>>) -> Result<String> {
     let mut state = ValueState::default();
 
     for (index, c) in input.chars().enumerate() {

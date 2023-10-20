@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Massive overhaul with harsh clippy lints
+- Set the correct MSRV (1.63.0)
+- Updated `tempfile`
+- Removed unused deps
+- Removed codegen stuff
+- Cleaned up tests
+
 ## [0.15.0] - 2019-10-21
 
 ### Changed
@@ -27,10 +35,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switched repo to use cargo workspaces.
 - Renamed dotenv_codegen_impl to dotenv_codegen_implementation since we no longer own the original crate.
 - Update code to 2018 edition
-
-
-
-[Unreleased]: https://github.com/dotenv-rs/dotenv/compare/v0.15.0...HEAD
-[0.15.0]: https://github.com/dotenv-rs/dotenv/compare/v0.14.1...v0.15.0
-[0.14.1]: https://github.com/dotenv-rs/dotenv/compare/v0.14.0...v0.14.1
-[0.14.0]: https://github.com/dotenv-rs/dotenv/compare/v0.13.0...v0.14.0

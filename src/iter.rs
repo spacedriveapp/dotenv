@@ -3,7 +3,7 @@ use std::env;
 use std::io::prelude::*;
 use std::io::{BufReader, Lines};
 
-use crate::errors::*;
+use crate::errors::{Error, Result};
 use crate::parse;
 
 pub struct Iter<R> {
@@ -12,8 +12,8 @@ pub struct Iter<R> {
 }
 
 impl<R: Read> Iter<R> {
-    pub fn new(reader: R) -> Iter<R> {
-        Iter {
+    pub fn new(reader: R) -> Self {
+        Self {
             lines: BufReader::new(reader).lines(),
             substitution_data: HashMap::new(),
         }

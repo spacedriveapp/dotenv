@@ -1,4 +1,4 @@
-use dotenv::dotenv;
+use sd_dotenv::dotenv;
 use std::env;
 
 fn main() {

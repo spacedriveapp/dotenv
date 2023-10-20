@@ -1,11 +1,8 @@
 # rust-dotenv 
 
-![CI](https://github.com/dotenv-rs/dotenv/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/dotenv-rs/dotenv/branch/master/graph/badge.svg)](https://codecov.io/gh/dotenv-rs/dotenv)
-[![Crates.io](https://img.shields.io/crates/v/dotenv.svg)](https://crates.io/crates/dotenv)
+![CI](https://github.com/spacedriveapp/dotenv/workflows/CI/badge.svg)
 
 **Achtung!** This is a v0.\* version! Expect bugs and issues all around.
-Submitting pull requests and issues is highly encouraged!
 
 Quoting [bkeepers/dotenv][dotenv]:
 
@@ -20,8 +17,7 @@ which setting environment variables is not practical. It loads environment
 variables from a `.env` file, if available, and mashes those with the actual
 environment variables provided by the operative system.
 
-Usage
-----
+## Usage
 
 The easiest and most common usage consists on calling `dotenv::dotenv` when the
 application starts, which will load environment variables from a file named
@@ -31,12 +27,7 @@ the environment-related method you need as provided by `std::os`.
 If you need finer control about the name of the file or its location, you can
 use the `from_filename` and `from_path` methods provided by the crate.
 
-`dotenv_codegen` provides the `dotenv!` macro, which
-behaves identically to `env!`, but first tries to load a `.env` file at compile
-time.
-
-Examples
-----
+## Examples
 
 A `.env` file looks like this:
 
@@ -52,9 +43,7 @@ conveniently allow you to source the whole file on your shell.
 A sample project using Dotenv would look like this:
 
 ```rust
-extern crate dotenv;
-
-use dotenv::dotenv;
+use sd_dotenv::dotenv;
 use std::env;
 
 fn main() {
@@ -66,15 +55,13 @@ fn main() {
 }
 ```
 
-Variable substitution
-----
+## Variable substitution
 
 It's possible to reuse variables in the `.env` file using `$VARIABLE` syntax.
 The syntax and rules are similar to bash ones, here's the example:
 
 
 ```sh
-
 VAR=one
 VAR_2=two
 
@@ -105,25 +92,5 @@ RESULT=$PATH #value: the contents of the $PATH environment variable, even though
 ```
 
 Dotenv will parse the file, substituting the variables the way it's described in the comments.
-
-
-Using the `dotenv!` macro
-------------------------------------
-
-Add `dotenv_codegen` to your dependencies, and add the following to the top of
-your crate:
-
-```rust
-#[macro_use]
-extern crate dotenv_codegen;
-```
-
-Then, in your crate:
-
-```rust
-fn main() {
-  println!("{}", dotenv!("MEANING_OF_LIFE"));
-}
-```
 
 [dotenv]: https://github.com/bkeepers/dotenv

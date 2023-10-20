@@ -9,15 +9,15 @@ pub enum Error {
     LineParse(String, usize),
     Io(io::Error),
     EnvVar(std::env::VarError),
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 impl Error {
+    #[must_use]
     pub fn not_found(&self) -> bool {
-        if let Error::Io(ref io_error) = *self {
+        if let Self::Io(ref io_error) = *self {
             return io_error.kind() == io::ErrorKind::NotFound;
         }
+
         false
     }
 }
@@ -25,24 +25,22 @@ impl Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Error::Io(err) => Some(err),
-            Error::EnvVar(err) => Some(err),
-            _ => None,
+            Self::Io(err) => Some(err),
+            Self::EnvVar(err) => Some(err),
+            Self::LineParse(_, _) => None,
         }
     }
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io(err) => write!(fmt, "{}", err),
-            Error::EnvVar(err) => write!(fmt, "{}", err),
-            Error::LineParse(line, error_index) => write!(
+            Self::Io(err) => write!(fmt, "{err}"),
+            Self::EnvVar(err) => write!(fmt, "{err}"),
+            Self::LineParse(line, error_index) => write!(
                 fmt,
-                "Error parsing line: '{}', error at line index: {}",
-                line, error_index
+                "Error parsing line: '{line}', error at line index: {error_index}"
             ),
-            _ => unreachable!(),
         }
     }
 }
@@ -98,8 +96,8 @@ mod test {
         let err = Error::Io(std::io::ErrorKind::PermissionDenied.into());
         let io_err: std::io::Error = std::io::ErrorKind::PermissionDenied.into();
 
-        let err_desc = format!("{}", err);
-        let io_err_desc = format!("{}", io_err);
+        let err_desc = format!("{err}");
+        let io_err_desc = format!("{io_err}");
         assert_eq!(io_err_desc, err_desc);
     }
 
@@ -108,15 +106,15 @@ mod test {
         let err = Error::EnvVar(std::env::VarError::NotPresent);
         let var_err = std::env::VarError::NotPresent;
 
-        let err_desc = format!("{}", err);
-        let var_err_desc = format!("{}", var_err);
+        let err_desc = format!("{err}");
+        let var_err_desc = format!("{var_err}");
         assert_eq!(var_err_desc, err_desc);
     }
 
     #[test]
     fn test_lineparse_error_display() {
         let err = Error::LineParse("test line".to_string(), 2);
-        let err_desc = format!("{}", err);
+        let err_desc = format!("{err}");
         assert_eq!(
             "Error parsing line: 'test line', error at line index: 2",
             err_desc

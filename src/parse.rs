@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
-use crate::errors::*;
+use crate::errors::{Error, Result};
+use std::{collections::HashMap, mem};
 
 // for readability's sake
 pub type ParsedLine = Result<Option<(String, String)>>;
@@ -65,7 +64,7 @@ impl<'a> LineParser<'a> {
             return Ok(Some((key, String::new())));
         }
 
-        let parsed_value = parse_value(self.line, &mut self.substitution_data)?;
+        let parsed_value = parse_value(self.line, self.substitution_data)?;
         self.substitution_data
             .insert(key.clone(), Some(parsed_value.clone()));
 
@@ -102,13 +101,13 @@ impl<'a> LineParser<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        if let Some(index) = self.line.find(|c: char| !c.is_whitespace()) {
-            self.pos += index;
-            self.line = &self.line[index..];
-        } else {
-            self.pos += self.line.len();
-            self.line = "";
-        }
+        let (pos, line) = self.line.find(|c: char| !c.is_whitespace()).map_or_else(
+            || (self.line.len(), ""),
+            |i| (self.pos + i, &self.line[i..]),
+        );
+
+        self.pos += pos;
+        self.line = line;
     }
 }
 
@@ -119,6 +118,8 @@ enum SubstitutionMode {
     EscapedBlock,
 }
 
+// TODO(brxken128): clean this up 💀
+#[allow(clippy::too_many_lines)]
 fn parse_value(
     input: &str,
     substitution_data: &mut HashMap<String, Option<String>>,
@@ -144,9 +145,9 @@ fn parse_value(
                 continue;
             } else if c == '#' {
                 break;
-            } else {
-                return Err(Error::LineParse(input.to_owned(), index));
             }
+
+            return Err(Error::LineParse(input.to_owned(), index));
         } else if escaped {
             //TODO I tried handling literal \r but various issues
             //imo not worth worrying about until there's a use case
@@ -179,7 +180,7 @@ fn parse_value(
                         } else {
                             apply_substitution(
                                 substitution_data,
-                                &substitution_name.drain(..).collect::<String>(),
+                                &mem::take(&mut substitution_name),
                                 &mut output,
                             );
                             if c == '$' {
@@ -199,7 +200,7 @@ fn parse_value(
                             substitution_mode = SubstitutionMode::None;
                             apply_substitution(
                                 substitution_data,
-                                &substitution_name.drain(..).collect::<String>(),
+                                &mem::take(&mut substitution_name),
                                 &mut output,
                             );
                         } else {
@@ -249,7 +250,7 @@ fn parse_value(
     } else {
         apply_substitution(
             substitution_data,
-            &substitution_name.drain(..).collect::<String>(),
+            &mem::take(&mut substitution_name),
             &mut output,
         );
         Ok(output)
@@ -267,16 +268,34 @@ fn apply_substitution(
         let stored_value = substitution_data
             .get(substitution_name)
             .unwrap_or(&None)
-            .to_owned();
-        output.push_str(&stored_value.unwrap_or_else(String::new));
+            .clone();
+
+        output.push_str(&stored_value.unwrap_or_default());
     };
 }
 
 #[cfg(test)]
 mod test {
-    use crate::iter::Iter;
+    use crate::{errors::Error::LineParse, iter::Iter, Result};
 
-    use super::*;
+    fn assert_parsed_string(input_string: &str, expected_parse_result: Vec<(&str, &str)>) {
+        let actual_iter = Iter::new(input_string.as_bytes());
+        let expected_count = &expected_parse_result.len();
+
+        let expected_iter = expected_parse_result
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()));
+
+        let mut count = 0;
+
+        for (expected, actual) in expected_iter.zip(actual_iter) {
+            assert!(actual.is_ok());
+            assert_eq!(expected, actual.ok().unwrap());
+            count += 1;
+        }
+
+        assert_eq!(count, *expected_count);
+    }
 
     #[test]
     fn test_parse_line_env() {
@@ -331,10 +350,10 @@ export   SHELL_LOVER=1
     #[test]
     fn test_parse_line_comment() {
         let result: Result<Vec<(String, String)>> = Iter::new(
-            r#"
+            br#"
 # foo=bar
 #    "#
-                .as_bytes(),
+                .as_ref(),
         )
         .collect();
         assert!(result.unwrap().is_empty());
@@ -378,7 +397,7 @@ KEY7="line 1\nline 2"
             ("KEY", r#"my cool value"#),
             ("KEY2", r#"$sweet"#),
             ("KEY3", r#"awesome stuff "mang""#),
-            ("KEY4", r#"sweet $\fgs'fds"#),
+            ("KEY4", r"sweet $\fgs'fds"),
             ("KEY5", r#"'"yay\ stuff"#),
             ("KEY6", "lol"),
             ("KEY7", "line 1\nline 2"),
@@ -407,29 +426,6 @@ KEY4=h\8u
         for actual in actual_iter {
             assert!(actual.is_err());
         }
-    }
-}
-
-#[cfg(test)]
-mod variable_substitution_tests {
-    use crate::iter::Iter;
-
-    fn assert_parsed_string(input_string: &str, expected_parse_result: Vec<(&str, &str)>) {
-        let actual_iter = Iter::new(input_string.as_bytes());
-        let expected_count = &expected_parse_result.len();
-
-        let expected_iter = expected_parse_result
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value.to_string()));
-
-        let mut count = 0;
-        for (expected, actual) in expected_iter.zip(actual_iter) {
-            assert!(actual.is_ok());
-            assert_eq!(expected, actual.ok().unwrap());
-            count += 1;
-        }
-
-        assert_eq!(count, *expected_count);
     }
 
     #[test]
@@ -563,12 +559,6 @@ mod variable_substitution_tests {
             vec![("KEY2", "_2"), ("KEY", "><>_2<")],
         );
     }
-}
-
-#[cfg(test)]
-mod error_tests {
-    use crate::errors::Error::LineParse;
-    use crate::iter::Iter;
 
     #[test]
     fn should_not_parse_unfinished_substitutions() {
@@ -578,9 +568,8 @@ mod error_tests {
             format!(
                 r#"
     KEY=VALUE
-    KEY1={}
-    "#,
-                wrong_value
+    KEY1={wrong_value}
+    "#
             )
             .as_bytes(),
         )
@@ -588,17 +577,14 @@ mod error_tests {
 
         assert_eq!(parsed_values.len(), 2);
 
-        if let Ok(first_line) = &parsed_values[0] {
-            assert_eq!(first_line, &(String::from("KEY"), String::from("VALUE")))
-        } else {
-            assert!(false, "Expected the first value to be parsed")
-        }
+        parsed_values[0].as_ref().map_or_else(
+            |_| panic!("Expected the first value to be parsed"),
+            |first_line| assert_eq!(first_line, &(String::from("KEY"), String::from("VALUE"))),
+        );
 
         if let Err(LineParse(second_value, index)) = &parsed_values[1] {
             assert_eq!(second_value, wrong_value);
-            assert_eq!(*index, wrong_value.len() - 1)
-        } else {
-            assert!(false, "Expected the second value not to be parsed")
+            assert_eq!(*index, wrong_value.len() - 1);
         }
     }
 
@@ -612,9 +598,7 @@ mod error_tests {
 
         if let Err(LineParse(second_value, index)) = &parsed_values[0] {
             assert_eq!(second_value, wrong_key_value);
-            assert_eq!(*index, 0)
-        } else {
-            assert!(false, "Expected the second value not to be parsed")
+            assert_eq!(*index, 0);
         }
     }
 
@@ -627,25 +611,20 @@ mod error_tests {
 
         if let Err(LineParse(wrong_value, index)) = &parsed_values[0] {
             assert_eq!(wrong_value, wrong_format);
-            assert_eq!(*index, 0)
-        } else {
-            assert!(false, "Expected the second value not to be parsed")
+            assert_eq!(*index, 0);
         }
     }
 
     #[test]
     fn should_not_parse_illegal_escape() {
         let wrong_escape = r">\f<";
-        let parsed_values: Vec<_> =
-            Iter::new(format!("VALUE={}", wrong_escape).as_bytes()).collect();
+        let parsed_values: Vec<_> = Iter::new(format!("VALUE={wrong_escape}").as_bytes()).collect();
 
         assert_eq!(parsed_values.len(), 1);
 
         if let Err(LineParse(wrong_value, index)) = &parsed_values[0] {
             assert_eq!(wrong_value, wrong_escape);
-            assert_eq!(*index, wrong_escape.find("\\").unwrap() + 1)
-        } else {
-            assert!(false, "Expected the second value not to be parsed")
+            assert_eq!(*index, wrong_escape.find('\\').unwrap() + 1);
         }
     }
 }

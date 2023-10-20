@@ -2,7 +2,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
 
-use crate::errors::*;
+use crate::errors::{Error, Result};
 use crate::iter::Iter;
 
 pub struct Finder<'a> {
@@ -16,7 +16,7 @@ impl<'a> Finder<'a> {
         }
     }
 
-    pub fn filename(mut self, filename: &'a Path) -> Self {
+    pub const fn filename(mut self, filename: &'a Path) -> Self {
         self.filename = filename;
         self
     }
@@ -46,12 +46,13 @@ pub fn find(directory: &Path, filename: &Path) -> Result<PathBuf> {
         }
     }
 
-    if let Some(parent) = directory.parent() {
-        find(parent, filename)
-    } else {
-        Err(Error::Io(io::Error::new(
-            io::ErrorKind::NotFound,
-            "path not found",
-        )))
-    }
+    directory.parent().map_or_else(
+        || {
+            Err(Error::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                "path not found",
+            )))
+        },
+        |parent| find(parent, filename),
+    )
 }

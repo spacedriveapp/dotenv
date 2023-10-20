@@ -131,6 +131,12 @@ struct ValueState {
     output: String,
 }
 
+impl ValueState {
+    pub fn append(&mut self, c: char) {
+        self.output.push(c);
+    }
+}
+
 // TODO(brxken128): clean this up 💀
 #[allow(clippy::too_many_lines)]
 fn parse_value(
@@ -158,8 +164,8 @@ fn parse_value(
             //(actually handling backslash 0x10 would be a whole other matter)
             //then there's \v \f bell hex... etc
             match c {
-                '\\' | '\'' | '"' | '$' | ' ' => state.output.push(c),
-                'n' => state.output.push('\n'), // handle \n case
+                '\\' | '\'' | '"' | '$' | ' ' => state.append(c),
+                'n' => state.append('\n'), // handle \n case
                 _ => {
                     return Err(Error::LineParse(input.to_owned(), index));
                 }
@@ -170,7 +176,7 @@ fn parse_value(
             if c == '\'' {
                 state.strong_quote = false;
             } else {
-                state.output.push(c);
+                state.append(c);
             }
         } else if state.substitution_mode != SubstitutionMode::None {
             if c.is_alphanumeric() {
@@ -195,7 +201,7 @@ fn parse_value(
                                 }
                             } else {
                                 state.substitution_mode = SubstitutionMode::None;
-                                state.output.push(c);
+                                state.append(c);
                             }
                         }
                     }
@@ -225,7 +231,7 @@ fn parse_value(
             } else if c == '\\' {
                 state.escaped = true;
             } else {
-                state.output.push(c);
+                state.append(c);
             }
         } else if c == '\'' {
             state.strong_quote = true;
@@ -236,7 +242,7 @@ fn parse_value(
         } else if c == ' ' || c == '\t' {
             state.expecting_end = true;
         } else {
-            state.output.push(c);
+            state.append(c);
         }
     }
 

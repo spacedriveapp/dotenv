@@ -18,7 +18,7 @@ readme = "README.md"
 keywords = ["environment", "env", "dotenv", "settings", "config"]
 license = "MIT"
 edition = "2021"
-msrv = "1.63"
+rust-version = "1.63"
 
 [dev-dependencies]
 tempfile = "3.8.0"

@@ -45,6 +45,9 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+      - name: Add rustfmt
+        run: rustup component add rustfmt
       - name: Check formatting
         run: cargo fmt -- --check
       - name: Clippy

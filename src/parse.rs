@@ -352,9 +352,9 @@ export   SHELL_LOVER=1
     #[test]
     fn test_parse_line_comment() {
         let result: Result<Vec<(String, String)>> = Iter::new(
-            br#"
+            br"
 # foo=bar
-#    "#
+#    "
                 .as_ref(),
         )
         .collect();
@@ -365,10 +365,10 @@ export   SHELL_LOVER=1
     fn test_parse_line_invalid() {
         // Note 4 spaces after 'invalid' below
         let actual_iter = Iter::new(
-            r#"
+            r"
   invalid    
 very bacon = yes indeed
-=value"#
+=value"
                 .as_bytes(),
         );
 
@@ -396,8 +396,8 @@ KEY7="line 1\nline 2"
         );
 
         let expected_iter = vec![
-            ("KEY", r#"my cool value"#),
-            ("KEY2", r#"$sweet"#),
+            ("KEY", r"my cool value"),
+            ("KEY2", r"$sweet"),
             ("KEY3", r#"awesome stuff "mang""#),
             ("KEY4", r"sweet $\fgs'fds"),
             ("KEY5", r#"'"yay\ stuff"#),
@@ -470,10 +470,10 @@ KEY4=h\8u
     #[test]
     fn same_variable_reused() {
         assert_parsed_string(
-            r#"
+            r"
     KEY=VALUE
     KEY1=$KEY$KEY
-    "#,
+    ",
             vec![("KEY", "VALUE"), ("KEY1", "VALUEVALUE")],
         );
     }
@@ -481,9 +481,9 @@ KEY4=h\8u
     #[test]
     fn with_dot() {
         assert_parsed_string(
-            r#"
+            r"
     KEY.Value=VALUE
-    "#,
+    ",
             vec![("KEY.Value", "VALUE")],
         );
     }
@@ -491,10 +491,10 @@ KEY4=h\8u
     #[test]
     fn recursive_substitution() {
         assert_parsed_string(
-            r#"
+            r"
             KEY=${KEY1}+KEY_VALUE
             KEY1=${KEY}+KEY1_VALUE
-            "#,
+            ",
             vec![("KEY", "+KEY_VALUE"), ("KEY1", "+KEY_VALUE+KEY1_VALUE")],
         );
     }
@@ -538,11 +538,11 @@ KEY4=h\8u
     #[test]
     fn consequent_substitutions() {
         assert_parsed_string(
-            r#"
+            r"
     KEY1=test_user
     KEY2=$KEY1_2
     KEY=>${KEY1}<>${KEY2}<
-    "#,
+    ",
             vec![
                 ("KEY1", "test_user"),
                 ("KEY2", "test_user_2"),
@@ -554,10 +554,10 @@ KEY4=h\8u
     #[test]
     fn consequent_substitutions_with_one_missing() {
         assert_parsed_string(
-            r#"
+            r"
     KEY2=$KEY1_2
     KEY=>${KEY1}<>${KEY2}<
-    "#,
+    ",
             vec![("KEY2", "_2"), ("KEY", "><>_2<")],
         );
     }
@@ -568,10 +568,10 @@ KEY4=h\8u
 
         let parsed_values: Vec<_> = Iter::new(
             format!(
-                r#"
+                r"
     KEY=VALUE
     KEY1={wrong_value}
-    "#
+    "
             )
             .as_bytes(),
         )
